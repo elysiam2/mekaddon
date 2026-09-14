@@ -126,6 +126,19 @@ update tag 写入与恢复；容器侧由 `MekanismContainerMixin` / `ContainerC
 
 ---
 
+## 目前已知问题
+
+1. **Mekanism Extras 兼容：GUI 错位**。
+   Extras（Absolute 及以上档位）融合工厂上升级本身可正常安装、槽位逻辑正常工作，
+   但界面中新增的副输入格一排显示位置有偏移。
+
+2. **「新时代科技」（New Age Science and Technology，NAST）整合包：新增槽位不显示**。
+   在该包中安装升级后，界面里不出现额外一排副输入格；纯净环境与 Mekanism Extras 环境均无此问题，
+   目前尚未确定是包内哪个模组导致的。已针对包内 Mek Energistics 替换工厂界面的模组加了兼容层，
+   但问题仍未完全解决，仍在排查中。
+
+---
+
 ## License
 
 [MIT](LICENSE)
