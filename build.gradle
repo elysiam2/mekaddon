@@ -1,0 +1,98 @@
+plugins {
+    id 'java'
+    id 'net.neoforged.moddev' version '2.0.107'
+}
+
+version = "${mod_version}+${minecraft_version}"
+group = mod_group_id
+base {
+    archivesName = mod_id
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(java_version as int)
+    withSourcesJar()
+}
+
+repositories {
+    // Maven Central is unreachable here; use a mirror first, then the real ones.
+    maven {
+        name = 'TencentPublic'
+        url = 'https://mirrors.cloud.tencent.com/nexus/repository/maven-public/'
+    }
+    mavenCentral()
+    // Mekanism is published to modmaven
+    maven { url = 'https://modmaven.dev/' }
+    maven { url = 'https://maven.neoforged.net/releases/' }
+}
+
+neoForge {
+    version = neo_version
+
+    validateAccessTransformers = true
+
+    parchment {
+        minecraftVersion = parchment_minecraft_version
+        mappingsVersion = parchment_mappings_version
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
+
+    runs {
+        client {
+            client()
+        }
+        server {
+            server()
+            programArgument '--nogui'
+        }
+    }
+}
+
+// Extra runtime classpath used only in the dev environment (not bundled into the built jar).
+configurations {
+    localRuntime
+}
+
+dependencies {
+    // Compile against the Mekanism API + implementation, but do not bundle it.
+    compileOnly "mekanism:Mekanism:${mekanism_version}"
+    // Pull Mekanism into the dev runtime so we can actually test the addon.
+    localRuntime "mekanism:Mekanism:${mekanism_version}"
+}
+
+// Make the localRuntime dependencies part of the main runtime classpath so FML loads Mekanism in dev runs.
+sourceSets.main.runtimeClasspath += configurations.localRuntime
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = java_version as int
+}
+
+var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
+    var replaceProperties = [
+            minecraft_version       : minecraft_version,
+            minecraft_version_range : minecraft_version_range,
+            neo_version             : neo_version,
+            neo_version_range       : neo_version_range,
+            loader_version_range    : loader_version_range,
+            mod_id                  : mod_id,
+            mod_name                : mod_name,
+            mod_license             : mod_license,
+            mod_version             : mod_version,
+            mod_authors             : mod_authors,
+            mod_description         : mod_description,
+            mekanism_version_range  : mekanism_version_range,
+    ]
+    inputs.properties replaceProperties
+    expand replaceProperties
+    from "src/main/templates"
+    into "build/generated/sources/modMetadata"
+}
+
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata

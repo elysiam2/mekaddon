@@ -1,0 +1,16 @@
+{
+  "required": false,
+  "minVersion": "0.8.5",
+  "package": "com.mekaddon.mixin.extras",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "ExtraTileEntityFactoryMixin",
+    "ExtraCombiningFactoryMixin"
+  ],
+  "client": [
+    "ExtraFactoryGuiMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

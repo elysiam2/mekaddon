@@ -1,0 +1,27 @@
+pluginManagement {
+    repositories {
+        // ModDevGradle plugin marker lives on the NeoForged maven.
+        maven {
+            name = 'NeoForged'
+            url = 'https://maven.neoforged.net/releases/'
+        }
+        // Aliyun mirror: has gradle-plugin artifacts (e.g. gradle-idea-ext) that MDG needs.
+        maven {
+            name = 'AliyunGradlePlugin'
+            url = 'https://maven.aliyun.com/repository/gradle-plugin/'
+        }
+        // Mirror for Maven Central (repo1.maven.org is unreachable here).
+        maven {
+            name = 'TencentPublic'
+            url = 'https://mirrors.cloud.tencent.com/nexus/repository/maven-public/'
+        }
+        maven {
+            name = 'AliyunPublic'
+            url = 'https://maven.aliyun.com/repository/public/'
+        }
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+rootProject.name = 'mekaddon'

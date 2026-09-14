@@ -1,0 +1,34 @@
+{
+  "required": true,
+  "minVersion": "0.8.5",
+  "package": "com.mekaddon.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "UpgradeMixin",
+    "UpgradeSupportMixin",
+    "UpgradeUtilsMixin",
+    "FactoryBaseMixin",
+    "FactoryCachedRecipeMixin",
+    "BasicInventorySlotPositionMixin",
+    "CombiningFactoryExtraSlotsMixin",
+    "TileEntityMekanismRecalcMixin",
+    "TileEntityMekanismLoadMixin",
+    "UpdateTagWriteMixin",
+    "UpdateTagReadMixin",
+    "FactoryContainerMixin",
+    "MekanismTileContainerMixin",
+    "MekanismContainerMixin",
+    "ContainerContentGuardMixin",
+    "TileEntityMekanismAccessor",
+    "TileEntityMekanismInvoker",
+    "CapabilityHandlerManagerAccessor"
+  ],
+  "client": [
+    "AbstractContainerScreenAccessor",
+    "GuiMekanismTileMixin",
+    "GuiFactoryMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

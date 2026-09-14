@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "SCS",
+    "CUC",
+    "SCS"
+  ],
+  "key": {
+    "S": {
+      "item": "mekanism:ingot_steel"
+    },
+    "C": {
+      "item": "mekanism:enriched_carbon"
+    },
+    "U": {
+      "item": "mekanism:upgrade_speed"
+    }
+  },
+  "result": {
+    "id": "mekaddon:combining_slot_upgrade",
+    "count": 1
+  }
+}

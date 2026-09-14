@@ -1,0 +1,13 @@
+{
+  "required": false,
+  "minVersion": "0.8.5",
+  "package": "com.mekaddon.mixin.mekenergistics",
+  "compatibilityLevel": "JAVA_21",
+  "plugin": "com.mekaddon.mixin.MekAddonMixinPlugin",
+  "client": [
+    "MeFactoryGuiCompatMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

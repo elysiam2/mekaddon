@@ -1,0 +1,42 @@
+modLoader = "javafml"
+loaderVersion = "${loader_version_range}"
+license = "${mod_license}"
+
+[[mixins]]
+config = "${mod_id}.mixins.json"
+
+# Optional integration; every target in it belongs to another mod, so it is skipped when that mod is absent.
+[[mixins]]
+config = "${mod_id}.extras.mixins.json"
+
+# Optional integration with Mek Energistics' replacement factory screens; gated per-target by MekAddonMixinPlugin.
+[[mixins]]
+config = "${mod_id}.mekenergistics.mixins.json"
+
+[[mods]]
+modId = "${mod_id}"
+version = "${mod_version}"
+displayName = "${mod_name}"
+authors = "${mod_authors}"
+description = '''${mod_description}'''
+
+[[dependencies.${mod_id}]]
+modId = "neoforge"
+type = "required"
+versionRange = "${neo_version_range}"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.${mod_id}]]
+modId = "minecraft"
+type = "required"
+versionRange = "${minecraft_version_range}"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.${mod_id}]]
+modId = "mekanism"
+type = "required"
+versionRange = "${mekanism_version_range}"
+ordering = "AFTER"
+side = "BOTH"

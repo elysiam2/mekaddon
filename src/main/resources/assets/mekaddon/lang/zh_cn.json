@@ -1,0 +1,13 @@
+{
+  "itemGroup.mekaddon": "Mekanism 融合工厂附属",
+  "item.mekaddon.combining_slot_upgrade": "融合格子升级",
+  "item.mekaddon.combining_slot_upgrade.desc": "把融合工厂共享的那一个黄色副输入格，换成每个工序各一个。",
+  "item.mekaddon.combining_slot_upgrade.desc2": "升级后可同时用不同的副材料并行加工；每台机器只消耗一个。",
+  "item.mekaddon.combining_slot_upgrade.hint": "放进机器的升级槽，或潜行 + 右键点击机器；可随时在升级界面卸载。",
+  "upgrade.mekaddon.combining_slots": "融合副输入升级",
+  "upgrade.mekaddon.combining_slots.desc": "为每个工序提供独立的副输入格。",
+  "message.mekaddon.combining_slot_upgrade.unlocked": "升级已安装！",
+  "message.mekaddon.combining_slot_upgrade.already": "这台机器已经装了这个升级。",
+  "message.mekaddon.combining_slot_upgrade.failed": "安装失败：升级槽没有接受这个物品。",
+  "message.mekaddon.combining_slot_upgrade.reopen": "重新打开界面即可看到新的副输入格。"
+}

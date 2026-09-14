@@ -1,0 +1,13 @@
+{
+  "itemGroup.mekaddon": "Mekanism Combining Factory Addon",
+  "item.mekaddon.combining_slot_upgrade": "Combining Slot Upgrade",
+  "item.mekaddon.combining_slot_upgrade.desc": "Replaces the Combining Factory's single shared secondary slot with one per process.",
+  "item.mekaddon.combining_slot_upgrade.desc2": "Run every process with its own secondary ingredient at the same time. One is consumed per machine.",
+  "item.mekaddon.combining_slot_upgrade.hint": "Install it in the upgrade slot, or Shift + Right-click the machine; uninstall it from the upgrade window.",
+  "upgrade.mekaddon.combining_slots": "Combining Secondary Upgrade",
+  "upgrade.mekaddon.combining_slots.desc": "Gives every process its own secondary input slot.",
+  "message.mekaddon.combining_slot_upgrade.unlocked": "Upgrade installed!",
+  "message.mekaddon.combining_slot_upgrade.already": "This machine already has the upgrade.",
+  "message.mekaddon.combining_slot_upgrade.failed": "Install failed: the upgrade slot did not accept the item.",
+  "message.mekaddon.combining_slot_upgrade.reopen": "Reopen the interface to see the new secondary slots."
+}
