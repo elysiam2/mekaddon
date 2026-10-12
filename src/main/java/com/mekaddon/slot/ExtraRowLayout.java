@@ -12,22 +12,21 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 
 /**
- * Keeps a Combining Factory's live inventory in step with whether the mod's upgrade is installed.
+ * Keeps a Combining Factory's secondary input in step with whether the mod's upgrade is installed.
  * <p>
- * This is deliberately <b>not</b> a rebuild. Mekanism creates every slot once, inside the block entity constructor,
- * and then hands that same list out to the GUI container, to item automation and to the recipe handlers. Swapping the
- * list contents for freshly built slots — which an earlier iteration did — leaves all of those pointing at detached
- * objects, and the symptoms are subtle: the slot frame colours vanish (the side-config mapping is keyed by slot
- * object), the output slots report "no space" forever (the cached recipe keeps writing into the detached slot), and
- * the machine appears to stop processing.
- * <p>
- * Instead the row is appended to and removed from the live list, the output row is moved by changing the existing
- * slots' coordinates, and nothing else is touched.
- * <p>
- * The <b>holder list is treated as the source of truth</b>, not the mixin's own bookkeeping: any other patch, or a
- * save/load in the middle, can move them out of step, and trusting the bookkeeping alone means the row silently stops
- * coming back. See {@link #syncUnchecked}.
- * <p>
+ * "In step" means three separate things, and it is worth being explicit about which list owns what:
+ * <ul>
+ *     <li><b>Which slots exist.</b> Every slot the mod adds is created once, when the machine is built, and stays in
+ *     the inventory holder for the machine's whole life. Which of them the <i>menu</i> contains is decided per container
+ *     build by the slots' own {@code createContainerSlot()} from {@link ExtraRowState#isUnlocked} — the same answer the
+ *     window geometry uses, so the two can never disagree. Earlier revisions instead added and removed the row from the
+ *     holder at runtime; that is only correct if the holder hands out its internal list, and where it does not (a holder
+ *     that returns a copy), the row ends up installed but invisible while the old shared slot stays on screen.</li>
+ *     <li><b>The output row's position.</b> The output slots are moved down by one row, in place, on the existing slot
+ *     objects — the container copies their coordinates when it is built, so this runs before the menu is constructed.</li>
+ *     <li><b>The side config.</b> The slots that are live right now are registered as {@code DataType.EXTRA}, which is
+ *     what item automation and the side-config GUI read.</li>
+ * </ul>
  * Called from four places, all outside the constructor: upgrade changes ({@code TileEntityMekanismRecalcMixin}), NBT
  * load ({@code TileEntityMekanismLoadMixin}) and container construction ({@code MekanismTileContainerMixin} — the
  * client learns about the layout from the block entity update packet, see {@link ExtraRowState}).
@@ -54,68 +53,48 @@ public final class ExtraRowLayout {
     private static void syncUnchecked(CombiningRowTile row) {
         TileEntityMekanism tile = (TileEntityMekanism) row;
         boolean installed = ExtraRowState.isUnlocked(tile);
-        List<IInventorySlot> live = ExtraRowSlots.liveSlots(tile);
-        if (live == null) {
-            MekAddon.LOGGER.warn("{}: could not resolve the inventory holder; secondary row left as it is",
-                  row.mekaddon$describe());
-            return;
-        }
-        List<IInventorySlot> tracked = row.mekaddon$secondarySlots();
-        // The holder is the truth. The tracked slots and the holder can drift apart (a holder that got replaced, a
-        // slot dropped by another patch, a mid-save reload), and if the bookkeeping then claims "already installed"
-        // while the holder disagrees, the row silently stops appearing. Comparing against the holder makes the
-        // mismatch self-healing instead.
-        boolean present = !tracked.isEmpty() && live.containsAll(tracked);
         boolean changed = false;
 
-        if (installed && !present) {
-            if (!tracked.isEmpty()) {
-                // Drop the stale row before building a fresh one.
-                live.removeAll(tracked);
+        // The block entity's own fields (extraSlot / extraInputHandler) are re-pointed at the row — or back at the
+        // shared slot — here. No slot is created or destroyed either way; see the class comment.
+        if (installed != row.mekaddon$rowActive()) {
+            if (installed) {
+                List<IInventorySlot> rowSlots = row.mekaddon$installRow();
+                changed = true;
+                MekAddon.LOGGER.info("{}: activated {} secondary input slot(s)", row.mekaddon$describe(), rowSlots.size());
+            } else {
                 row.mekaddon$uninstallRow();
+                changed = true;
+                MekAddon.LOGGER.info("{}: deactivated the secondary input row", row.mekaddon$describe());
             }
-            IInventorySlot shared = row.mekaddon$sharedSecondarySlot();
-            List<IInventorySlot> created = row.mekaddon$installRow();
-            if (shared != null) {
-                // The machine's own single shared secondary slot is replaced by the per-process row; leaving it in the
-                // holder would keep the original yellow slot on screen next to the new ones.
-                live.remove(shared);
-            }
-            live.addAll(created);
-            // The shared slot is registered even while it is out of the holder: ConfigInfo#addSlotInfo *replaces* the
-            // mapping for a DataType, so a registration that omitted it would leave it with no DataType at all - and a
-            // slot with no DataType renders plain grey instead of gold. That is exactly the "the yellow slot lost its
-            // colour" symptom.
-            ExtraRowSlots.registerConfig(tile, withShared(shared, created));
-            changed = true;
-            MekAddon.LOGGER.info("{}: installed {} secondary input slot(s)", row.mekaddon$describe(), created.size());
-        } else if (!installed && !tracked.isEmpty()) {
-            List<IInventorySlot> removed = row.mekaddon$secondarySlots();
-            // uninstallRow() hands back the machine's own shared slot, which is what has to go back into the holder -
-            // reading sharedSecondarySlot() instead would return this row's first slot, because that is where the
-            // vanilla field has been re-pointed.
-            IInventorySlot shared = row.mekaddon$uninstallRow();
-            live.removeAll(removed);
-            if (shared != null) {
-                if (!live.contains(shared)) {
-                    live.add(shared);
-                }
-                ExtraRowSlots.registerConfig(tile, List.of(shared));
-            }
-            changed = true;
-            MekAddon.LOGGER.info("{}: removed the secondary input row again", row.mekaddon$describe());
         }
 
-        // Always re-asserted, and idempotent: whoever is the secondary input right now must carry the EXTRA DataType,
-        // otherwise the slot renders plain grey ("the yellow slot lost its colour"). Doing it on every sync also
-        // repairs a machine that got into that state earlier. The row is re-read here rather than reused from above,
-        // because the install branch has just replaced it.
+        // Exactly the slots that are live right now. Rewriting this unconditionally would be a bug rather than a
+        // harmless refresh: every registration appends the DataType to each slot's own list, and Mekanism stops
+        // resolving a DataType once that list has grown to the size of the config's supported set — the frame would
+        // silently go grey. registerConfig therefore compares first and only writes on a real change.
         IInventorySlot sharedNow = row.mekaddon$sharedSecondarySlot();
         ExtraRowSlots.registerConfig(tile,
-              installed ? withShared(sharedNow, row.mekaddon$secondarySlots()) : withShared(sharedNow, List.of()));
+              installed ? row.mekaddon$secondarySlots() : withShared(sharedNow, List.of()));
+
         // Same reasoning for the geometry: the container copies each slot's coordinates when it is built, and the
         // client reaches this method from the container's constructor precisely so the copy happens after the move.
+        // The main inputs drop by a few pixels with it, so the secondary slot of a process stays under its main input
+        // and the title keeps some room above the first row.
+        ExtraRowSlots.positionInputRow(row.mekaddon$inputSlots(), installed);
         ExtraRowSlots.positionOutputRow(row.mekaddon$outputSlots(), installed);
+
+        // Sanity check, logged only when the layout just changed: the machine's own inventory view has to contain what
+        // was made live, or the row is installed and yet will never reach a menu. Cheap, bounded, and it turns "the
+        // slots are missing" into a one-line diagnosis.
+        if (changed) {
+            List<IInventorySlot> view = ExtraRowSlots.liveSlots(tile);
+            List<IInventorySlot> active = installed ? row.mekaddon$secondarySlots() : List.of();
+            if (view != null && !view.containsAll(active)) {
+                MekAddon.LOGGER.warn("{}: the machine's inventory view does not contain the {} active secondary "
+                      + "slot(s); the row will not reach the menu", row.mekaddon$describe(), active.size());
+            }
+        }
 
         if (changed) {
             notifyChanged(tile);

@@ -13,34 +13,43 @@ import mekanism.api.inventory.IInventorySlot;
 public interface CombiningExtraRowView {
 
     /**
-     * Creates the per-process secondary slots and re-points Mekanism's single-slot recipe fields at them.
+     * Whether the machine is currently running its per-process row — i.e. whether its {@code extraSlot} /
+     * {@code extraInputHandler} fields point at the row rather than at its own shared secondary slot.
      * <p>
-     * Mekanism models the secondary input as one shared slot for the whole machine; once the upgrade is installed each
-     * process owns one, so the fields are re-pointed per process instead of duplicating the recipe machinery. The
-     * created slots are <b>not</b> added to any holder — the caller does that.
+     * This is bookkeeping the mod owns, and it is deliberately <b>not</b> derived from inventory-list membership: that
+     * is what the row's presence in a menu no longer depends on either.
+     */
+    boolean mekaddon$rowActive();
+
+    /**
+     * Creates the per-process secondary slots if they do not exist yet and points the vanilla recipe fields at them.
+     * <p>
+     * The slots themselves are created once for the machine's lifetime and registered with the machine's real
+     * {@code InventorySlotHelper}; activating again is a no-op, and deactivating never destroys them — which of them a
+     * menu contains is decided per container build by the slots' own {@code createContainerSlot()}.
+     *
+     * @return the row, empty if it could not be created.
      */
     List<IInventorySlot> mekaddon$installRow();
 
     /**
-     * Tears the row down again and restores the vanilla fields.
-     *
-     * @return the machine's own shared secondary slot, which the caller must put back into the holder, or {@code null}.
+     * Points the vanilla fields back at the machine's own shared secondary slot and marks the row inactive. The row
+     * slots stay where they are; they simply stop being offered to menus and to item automation.
      */
-    IInventorySlot mekaddon$uninstallRow();
+    void mekaddon$uninstallRow();
 
     /**
      * Points the vanilla {@code extraSlot} / {@code extraInputHandler} fields at {@code process}'s own secondary slot.
-     * No-op when the row is not installed.
+     * No-op when the row is not active.
      */
     void mekaddon$selectProcess(int process);
 
     /**
-     * The machine's own single shared secondary slot, whatever the current state: vanilla's slot while the row is not
-     * installed, and still vanilla's slot afterwards (it is only re-pointed, never destroyed). The caller removes it
-     * from — and puts it back into — the inventory holder.
+     * The machine's own single shared secondary slot, whatever the current state — vanilla's slot, which is only ever
+     * re-pointed, never destroyed.
      */
     IInventorySlot mekaddon$sharedSecondarySlot();
 
-    /** The per-process secondary slots, in process order. Empty while the upgrade is not installed. */
+    /** The per-process secondary slots, in process order. Empty only before the row has ever been created. */
     List<IInventorySlot> mekaddon$secondarySlots();
 }

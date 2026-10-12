@@ -19,4 +19,13 @@ public interface ExtraFactoryView {
 
     /** Extras' per-process recipe monitors, one per process. */
     Object[] mekaddon$monitors();
+
+    /**
+     * Wraps a listener the way Extras' factory wraps the ones it hands its own input slots: the inner listener still
+     * runs, the monitors are unpaused, and the machine marks its inventory as needing another sorting pass.
+     * <p>
+     * Extras reimplements Mekanism's factory framework, sorting included, so its slots need Extras' own wrapper — the
+     * Mekanism-side one does not exist on these machines.
+     */
+    Object mekaddon$markAllMonitors(Object listener);
 }

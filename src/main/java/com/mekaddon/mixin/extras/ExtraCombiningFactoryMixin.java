@@ -7,8 +7,11 @@ import com.jerry.mekextras.common.tile.factory.TileEntityExtraFactory;
 import com.mekaddon.bridge.CombiningRowTile;
 import com.mekaddon.bridge.ExtraFactoryView;
 import com.mekaddon.bridge.SlotPositionView;
+import com.mekaddon.slot.ExtraRowSlots;
+import com.mekaddon.slot.ExtrasStackedInputSlot;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 import mekanism.api.IContentsListener;
 import mekanism.api.inventory.IInventorySlot;
 import mekanism.api.recipes.CombinerRecipe;
@@ -17,6 +20,7 @@ import mekanism.api.recipes.cache.CachedRecipe.OperationTracker.RecipeError;
 import mekanism.api.recipes.inputs.IInputHandler;
 import mekanism.api.recipes.inputs.InputHelper;
 import mekanism.common.recipe.lookup.monitor.FactoryRecipeCacheLookupMonitor;
+import mekanism.common.tile.base.TileEntityMekanism;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -25,6 +29,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
@@ -65,32 +70,74 @@ public abstract class ExtraCombiningFactoryMixin implements CombiningRowTile {
     @Unique
     private IInputHandler<ItemStack> mekaddon$vanillaExtraHandler;
 
+    /** Whether the vanilla recipe fields currently point at the row rather than at the shared slot. */
+    @Unique
+    private boolean mekaddon$rowActive;
+
     // ------------------------------------------------------------------ lifecycle
 
     @Override
-    public List<IInventorySlot> mekaddon$installRow() {
-        if (!mekaddon$secondary.isEmpty()) {
-            return List.of();
-        }
-        mekaddon$vanillaExtraSlot = extraSlot;
-        mekaddon$vanillaExtraHandler = extraInputHandler;
+    public boolean mekaddon$rowActive() {
+        return mekaddon$rowActive;
+    }
 
+    @Override
+    public List<IInventorySlot> mekaddon$installRow() {
+        mekaddon$createRow();
+        if (mekaddon$secondary.isEmpty() || mekaddon$rowActive) {
+            return mekaddon$secondary;
+        }
+        if (mekaddon$vanillaExtraSlot == null) {
+            mekaddon$vanillaExtraSlot = extraSlot;
+            mekaddon$vanillaExtraHandler = extraInputHandler;
+        }
+        mekaddon$rowActive = true;
+        mekaddon$selectProcess(0);
+        return mekaddon$secondary;
+    }
+
+    @Override
+    public void mekaddon$uninstallRow() {
+        if (!mekaddon$rowActive) {
+            return;
+        }
+        mekaddon$rowActive = false;
+        if (mekaddon$vanillaExtraSlot != null) {
+            extraSlot = mekaddon$vanillaExtraSlot;
+            if (mekaddon$vanillaExtraHandler != null) {
+                extraInputHandler = mekaddon$vanillaExtraHandler;
+            }
+        }
+    }
+
+    /** Builds the per-process row once and makes it part of the machine; see the Mekanism-side twin for why. */
+    @Unique
+    private void mekaddon$createRow() {
+        if (!mekaddon$secondary.isEmpty()) {
+            return;
+        }
         FactoryRecipeCacheLookupMonitor<?>[] monitors = monitors();
         TileEntityExtraFactory.ProcessInfo[] infos = processInfos();
         ExtraFactoryTier tier = extraTier();
         TileEntityExtraCombiningFactory self = (TileEntityExtraCombiningFactory) (Object) this;
-        IContentsListener fallback = ((TileEntityExtraCombiningFactory) (Object) this)::markForSave;
+        IContentsListener fallback = self::markForSave;
         int processes = Math.min(tier.processes, infos.length);
 
         List<IInventorySlot> created = new ArrayList<>(processes);
         for (int i = 0; i < processes; i++) {
             IInventorySlot mainInput = infos[i].inputSlot();
-            IContentsListener listener = i < monitors.length && monitors[i] instanceof IContentsListener cl
+            // The per-process monitor, wrapped exactly the way Extras wraps the listeners of its own input slots: a
+            // change here has to schedule the same sorting pass a change to a main input would, or the machine stops
+            // redistributing as soon as the extra row exists.
+            IContentsListener inner = i < monitors.length && monitors[i] instanceof IContentsListener cl
                   ? cl : fallback;
+            IContentsListener listener = (IContentsListener) ((ExtraFactoryView) this).mekaddon$markAllMonitors(inner);
             // Column position comes from the main input slot that already exists, so any tier - including tiers this
             // mod has never heard of - lines up without a per-tier table.
             int x = mainInput instanceof SlotPositionView position ? position.mekaddon$slotX() : 27 + i * 19;
-            created.add(StackableInputInventorySlot.at(tier,
+            // Not the vanilla StackableInputInventorySlot: the mod's own subclass adds the "Extra Stack Upgrade"
+            // multiplier (x2 per upgrade, up to x256) on top of Extras' tier scaling.
+            created.add(ExtrasStackedInputSlot.createRow(self, tier,
                   stack -> mainInput == null || mainInput.isEmpty()
                         ? self.containsRecipeB(stack)
                         : self.containsRecipeAB(mainInput.getStack(), stack),
@@ -104,27 +151,6 @@ public abstract class ExtraCombiningFactoryMixin implements CombiningRowTile {
         }
         mekaddon$secondary = created;
         mekaddon$secondaryHandlers = handlers;
-        mekaddon$selectProcess(0);
-        return created;
-    }
-
-    @Override
-    public IInventorySlot mekaddon$uninstallRow() {
-        if (mekaddon$secondary.isEmpty()) {
-            return null;
-        }
-        mekaddon$secondary = List.of();
-        mekaddon$secondaryHandlers = null;
-        StackableInputInventorySlot vanilla = mekaddon$vanillaExtraSlot;
-        if (vanilla != null) {
-            extraSlot = vanilla;
-            if (mekaddon$vanillaExtraHandler != null) {
-                extraInputHandler = mekaddon$vanillaExtraHandler;
-            }
-        }
-        mekaddon$vanillaExtraSlot = null;
-        mekaddon$vanillaExtraHandler = null;
-        return vanilla;
     }
 
     @Override
@@ -134,7 +160,9 @@ public abstract class ExtraCombiningFactoryMixin implements CombiningRowTile {
 
     @Override
     public IInventorySlot mekaddon$sharedSecondarySlot() {
-        return extraSlot;
+        // The machine's own slot, whatever the current state: while the row is active the vanilla field points at the
+        // row's first process instead, so remember which object it was.
+        return mekaddon$vanillaExtraSlot != null ? mekaddon$vanillaExtraSlot : extraSlot;
     }
 
     @Override
@@ -149,6 +177,17 @@ public abstract class ExtraCombiningFactoryMixin implements CombiningRowTile {
             }
         }
         return outputs;
+    }
+
+    @Override
+    public List<IInventorySlot> mekaddon$inputSlots() {
+        List<IInventorySlot> inputs = new ArrayList<>();
+        for (TileEntityExtraFactory.ProcessInfo info : processInfos()) {
+            if (info.inputSlot() != null) {
+                inputs.add(info.inputSlot());
+            }
+        }
+        return inputs;
     }
 
     @Override
@@ -228,5 +267,26 @@ public abstract class ExtraCombiningFactoryMixin implements CombiningRowTile {
         // directly keeps this mixin independent of how Extras exposes it.
         Object[] monitors = ((ExtraFactoryView) (Object) this).mekaddon$monitors();
         return monitors == null ? new FactoryRecipeCacheLookupMonitor<?>[0] : (FactoryRecipeCacheLookupMonitor<?>[]) monitors;
+    }
+
+    // ------------------------------------------------------------------ the machine's own shared secondary slot
+
+    /**
+     * The Extras half of the same redirect the Mekanism-side mixin does: the machine's single shared secondary slot is
+     * built as {@link ExtrasStackedInputSlot} instead of Extras' plain slot, so the "Extra Stack Upgrade" multiplier
+     * applies to it — which, now that the two upgrades are mutually exclusive, is the normal way the multiplier is
+     * used. See {@code CombiningFactoryExtraSlotsMixin#mekaddon$sharedSecondarySlot} for why substituting the slot at
+     * creation time is safe while replacing one later is not.
+     */
+    @Redirect(
+          method = "addSlots(Lmekanism/common/capabilities/holder/slot/InventorySlotHelper;Lmekanism/api/IContentsListener;Lmekanism/api/IContentsListener;)V",
+          at = @At(value = "INVOKE",
+                target = "Lcom/jerry/mekextras/common/inventory/slot/StackableInputInventorySlot;at(Lcom/jerry/mekextras/common/tier/ExtraFactoryTier;Ljava/util/function/Predicate;Lmekanism/api/IContentsListener;II)Lcom/jerry/mekextras/common/inventory/slot/StackableInputInventorySlot;"),
+          remap = false
+    )
+    private StackableInputInventorySlot mekaddon$sharedSecondarySlot(ExtraFactoryTier tier, Predicate<ItemStack> valid,
+          IContentsListener listener, int x, int y) {
+        // Declared to return the exact type the redirected call returns (the instance is a subclass).
+        return ExtrasStackedInputSlot.create((TileEntityMekanism) (Object) this, tier, valid, listener, x, y);
     }
 }

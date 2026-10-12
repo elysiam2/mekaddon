@@ -5,7 +5,11 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "ExtraTileEntityFactoryMixin",
-    "ExtraCombiningFactoryMixin"
+    "ExtraCombiningFactoryMixin",
+    "ExtraFactoryContainerMixin",
+    "ExtraFactorySortingMixin",
+    "ExtraPressingFactorySlotsMixin",
+    "ExtraStampingFactorySlotsMixin"
   ],
   "client": [
     "ExtraFactoryGuiMixin"

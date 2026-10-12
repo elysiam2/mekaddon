@@ -13,6 +13,14 @@ config = "${mod_id}.extras.mixins.json"
 [[mixins]]
 config = "${mod_id}.mekenergistics.mixins.json"
 
+# Optional integration with Mek MM's CNC stamper / stamping factories; every target belongs to that mod.
+[[mixins]]
+config = "${mod_id}.mekmm.mixins.json"
+
+# Optional integration with MekaJadeUpgrades' upgrade tooltip (its icon lookup predates this mod's upgrades).
+[[mixins]]
+config = "${mod_id}.mekajadeupgrade.mixins.json"
+
 [[mods]]
 modId = "${mod_id}"
 version = "${mod_version}"

@@ -4,11 +4,13 @@ import com.jerry.mekextras.common.tier.ExtraFactoryTier;
 import com.jerry.mekextras.common.tile.factory.TileEntityExtraFactory;
 import com.mekaddon.bridge.ExtraFactoryView;
 import com.mekaddon.slot.ExtraRowLayout;
+import mekanism.api.IContentsListener;
 import mekanism.api.Upgrade;
 import mekanism.common.recipe.lookup.monitor.FactoryRecipeCacheLookupMonitor;
 import mekanism.common.tile.base.TileEntityMekanism;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.gen.Invoker;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -50,6 +52,15 @@ public abstract class ExtraTileEntityFactoryMixin implements ExtraFactoryView {
     @Override
     public Object[] mekaddon$monitors() {
         return recipeCacheLookupMonitors;
+    }
+
+    /** Extras' own listener wrapper — protected, so it needs an invoker to be reachable from here. */
+    @Invoker("markAllMonitorsChanged")
+    protected abstract IContentsListener mekaddon$invokeMarkAllMonitorsChanged(IContentsListener listener);
+
+    @Override
+    public Object mekaddon$markAllMonitors(Object listener) {
+        return mekaddon$invokeMarkAllMonitorsChanged((IContentsListener) listener);
     }
 
     /**

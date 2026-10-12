@@ -1,0 +1,12 @@
+{
+  "required": false,
+  "minVersion": "0.8.5",
+  "package": "com.mekaddon.mixin.mekajadeupgrade",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "ModUpgradeIconMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

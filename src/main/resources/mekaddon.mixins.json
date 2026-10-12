@@ -9,8 +9,12 @@
     "UpgradeUtilsMixin",
     "FactoryBaseMixin",
     "FactoryCachedRecipeMixin",
+    "FactorySortingMixin",
     "BasicInventorySlotPositionMixin",
+    "BasicInventorySlotGuardMixin",
+    "ConfigHolderMixin",
     "CombiningFactoryExtraSlotsMixin",
+    "TileComponentUpgradeMixin",
     "TileEntityMekanismRecalcMixin",
     "TileEntityMekanismLoadMixin",
     "UpdateTagWriteMixin",
@@ -25,6 +29,7 @@
   ],
   "client": [
     "AbstractContainerScreenAccessor",
+    "GuiMekanismFrameMixin",
     "GuiMekanismTileMixin",
     "GuiFactoryMixin"
   ],

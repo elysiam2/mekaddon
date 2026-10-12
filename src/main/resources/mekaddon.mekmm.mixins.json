@@ -1,0 +1,15 @@
+{
+  "required": false,
+  "minVersion": "0.8.5",
+  "package": "com.mekaddon.mixin.mekmm",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "StamperMoldSlotMixin",
+    "StampingFactoryExtraSlotMixin",
+    "PresserExtraSlotsMixin",
+    "PressingFactoryExtraSlotsMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

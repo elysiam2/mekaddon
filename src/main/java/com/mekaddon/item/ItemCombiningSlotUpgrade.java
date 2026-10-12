@@ -3,6 +3,7 @@ package com.mekaddon.item;
 import com.mekaddon.bridge.CombiningRowTile;
 import com.mekaddon.registry.ModUpgrades;
 import com.mekaddon.state.ExtraRowState;
+import com.mekaddon.state.UpgradeConflicts;
 import java.util.List;
 import mekanism.api.Action;
 import mekanism.api.AutomationType;
@@ -67,15 +68,22 @@ public class ItemCombiningSlotUpgrade extends Item implements IUpgradeItem {
             // Defer the actual state change to the server; just report success for the client hand swing.
             return InteractionResult.sidedSuccess(true);
         }
-        if (ExtraRowState.isUnlocked(tile)) {
-            player.displayClientMessage(Component.translatable("message.mekaddon.combining_slot_upgrade.already")
-                  .withStyle(ChatFormatting.YELLOW), true);
-            return InteractionResult.FAIL;
-        }
         TileComponentUpgrade component = tile.getComponent();
         UpgradeInventorySlot upgradeSlot = component == null ? null : component.getUpgradeSlot();
         if (upgradeSlot == null) {
             return InteractionResult.PASS;
+        }
+        // The two upgrades answer the same question, so a machine carries one or the other, never both. Checked before
+        // anything else so the player is told which one is in the way.
+        if (UpgradeConflicts.installedConflict(tile, ModUpgrades.combiningSlots()) != null) {
+            player.displayClientMessage(UpgradeConflicts.conflictMessage(ModUpgrades.extraStack())
+                  .withStyle(ChatFormatting.RED), true);
+            return InteractionResult.FAIL;
+        }
+        if (ExtraRowState.isUnlocked(tile)) {
+            player.displayClientMessage(Component.translatable("message.mekaddon.combining_slot_upgrade.already")
+                  .withStyle(ChatFormatting.YELLOW), true);
+            return InteractionResult.FAIL;
         }
         // Hand one over to the machine rather than flipping any state ourselves: Mekanism's tickServer moves it from
         // the upgrade slot into the installed map, so this path and the upgrade window end up identical.

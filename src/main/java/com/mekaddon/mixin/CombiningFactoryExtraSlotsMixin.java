@@ -2,9 +2,11 @@ package com.mekaddon.mixin;
 
 import com.mekaddon.bridge.CombiningRowTile;
 import com.mekaddon.bridge.FactoryBaseView;
+import com.mekaddon.slot.CombiningSharedSecondarySlot;
 import com.mekaddon.slot.ExtraRowSlots;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 import mekanism.api.IContentsListener;
 import mekanism.api.inventory.IInventorySlot;
 import mekanism.api.recipes.CombinerRecipe;
@@ -14,6 +16,8 @@ import mekanism.api.recipes.inputs.IInputHandler;
 import mekanism.api.recipes.inputs.InputHelper;
 import mekanism.common.inventory.slot.InputInventorySlot;
 import mekanism.common.recipe.lookup.monitor.FactoryRecipeCacheLookupMonitor;
+import mekanism.common.tile.base.TileEntityMekanism;
+import mekanism.common.tile.base.TileEntityUpdateable;
 import mekanism.common.tile.factory.TileEntityCombiningFactory;
 import mekanism.common.tile.factory.TileEntityFactory.ProcessInfo;
 import mekanism.common.upgrade.CombinerUpgradeData;
@@ -27,6 +31,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -58,7 +63,7 @@ public abstract class CombiningFactoryExtraSlotsMixin implements CombiningRowTil
     @Mutable
     private IInputHandler<ItemStack> extraInputHandler;
 
-    /** The per-process secondary slots currently installed, in process order. Empty while not upgraded. */
+    /** The per-process secondary slots, in process order. Created once and kept; only their activation changes. */
     @Unique
     private List<IInventorySlot> mekaddon$secondary = List.of();
 
@@ -66,34 +71,81 @@ public abstract class CombiningFactoryExtraSlotsMixin implements CombiningRowTil
     @Unique
     private IInputHandler<ItemStack>[] mekaddon$secondaryHandlers;
 
-    /** The machine's own shared secondary slot, captured before the row takes those fields over. */
+    /** The machine's own shared secondary slot, remembered while the row is the one in use. */
     @Unique
     private InputInventorySlot mekaddon$vanillaExtraSlot;
 
-    /** The handler vanilla built for {@link #mekaddon$vanillaExtraSlot}, restored verbatim on uninstall. */
+    /** The handler vanilla built for {@link #mekaddon$vanillaExtraSlot}, restored verbatim when the row steps aside. */
     @Unique
     private IInputHandler<ItemStack> mekaddon$vanillaExtraHandler;
+
+    /** Whether the vanilla recipe fields currently point at the row rather than at the shared slot. */
+    @Unique
+    private boolean mekaddon$rowActive;
 
     // ------------------------------------------------------------------ lifecycle
 
     @Override
-    public List<IInventorySlot> mekaddon$installRow() {
-        if (!mekaddon$secondary.isEmpty()) {
-            return List.of();
-        }
-        // Capture vanilla's state first: both fields are about to be re-pointed at the row.
-        mekaddon$vanillaExtraSlot = extraSlot;
-        mekaddon$vanillaExtraHandler = extraInputHandler;
+    public boolean mekaddon$rowActive() {
+        return mekaddon$rowActive;
+    }
 
+    @Override
+    public List<IInventorySlot> mekaddon$installRow() {
+        mekaddon$createRow();
+        if (mekaddon$secondary.isEmpty() || mekaddon$rowActive) {
+            return mekaddon$secondary;
+        }
+        if (mekaddon$vanillaExtraSlot == null) {
+            // Remember vanilla's own slot and handler before the fields move: the shared slot is what the machine
+            // falls back to, and it is never destroyed, only re-pointed away from.
+            mekaddon$vanillaExtraSlot = extraSlot;
+            mekaddon$vanillaExtraHandler = extraInputHandler;
+        }
+        mekaddon$rowActive = true;
+        // Process 0 is the one asked for most often, and the fallback for the paths that carry no process index.
+        mekaddon$selectProcess(0);
+        return mekaddon$secondary;
+    }
+
+    @Override
+    public void mekaddon$uninstallRow() {
+        if (!mekaddon$rowActive) {
+            return;
+        }
+        mekaddon$rowActive = false;
+        // Restore vanilla's own slot and handler, so the machine behaves exactly as it did before the upgrade. The row
+        // slots stay in the holder - they are simply not offered to a menu, or to automation, while inactive
+        // (see AddonExtraInputSlot#createContainerSlot).
+        if (mekaddon$vanillaExtraSlot != null) {
+            extraSlot = mekaddon$vanillaExtraSlot;
+            if (mekaddon$vanillaExtraHandler != null) {
+                extraInputHandler = mekaddon$vanillaExtraHandler;
+            }
+        }
+    }
+
+    /**
+     * Builds the per-process row once and makes it part of the machine.
+     * <p>
+     * The slots are created and registered here rather than in {@code addSlots} for one practical reason: the
+     * container's slot list is fixed when the menu is built, so as long as the slots are in the holder before that,
+     * they are in the menu. Doing it lazily keeps an un-upgraded machine's inventory exactly as vanilla made it.
+     */
+    @Unique
+    private void mekaddon$createRow() {
+        if (!mekaddon$secondary.isEmpty()) {
+            return;
+        }
+        TileEntityCombiningFactory self = (TileEntityCombiningFactory) (Object) this;
         FactoryBaseView base = (FactoryBaseView) (Object) this;
         ProcessInfo[] processInfo = base.mekaddon$getProcessInfoSlots();
         FactoryRecipeCacheLookupMonitor<?>[] monitors = base.mekaddon$getRecipeCacheLookupMonitors();
         // markForSave() satisfies IContentsListener (onContentsChanged), and is only a fallback for the (unlikely) case
         // of a monitor not being a listener - the per-process monitor is what actually triggers a recipe recheck.
-        IContentsListener fallback = ((mekanism.common.tile.base.TileEntityUpdateable) (Object) this)::markForSave;
+        IContentsListener fallback = ((TileEntityUpdateable) (Object) this)::markForSave;
 
-        List<IInventorySlot> created = ExtraRowSlots.createRow((TileEntityCombiningFactory) (Object) this, processInfo,
-              monitors, fallback);
+        List<IInventorySlot> created = ExtraRowSlots.createRow(self, processInfo, monitors, fallback);
         @SuppressWarnings("unchecked")
         IInputHandler<ItemStack>[] handlers = new IInputHandler[created.size()];
         for (int i = 0; i < created.size(); i++) {
@@ -102,29 +154,6 @@ public abstract class CombiningFactoryExtraSlotsMixin implements CombiningRowTil
         }
         mekaddon$secondary = created;
         mekaddon$secondaryHandlers = handlers;
-        // Process 0 is the one asked for most often, and the fallback for the paths that carry no process index.
-        mekaddon$selectProcess(0);
-        return created;
-    }
-
-    @Override
-    public IInventorySlot mekaddon$uninstallRow() {
-        if (mekaddon$secondary.isEmpty()) {
-            return null;
-        }
-        mekaddon$secondary = List.of();
-        mekaddon$secondaryHandlers = null;
-        // Restore vanilla's own slot and handler, so the machine behaves exactly as it did before the upgrade.
-        InputInventorySlot vanilla = mekaddon$vanillaExtraSlot;
-        if (vanilla != null) {
-            extraSlot = vanilla;
-            if (mekaddon$vanillaExtraHandler != null) {
-                extraInputHandler = mekaddon$vanillaExtraHandler;
-            }
-        }
-        mekaddon$vanillaExtraSlot = null;
-        mekaddon$vanillaExtraHandler = null;
-        return vanilla;
     }
 
     @Override
@@ -134,7 +163,9 @@ public abstract class CombiningFactoryExtraSlotsMixin implements CombiningRowTil
 
     @Override
     public IInventorySlot mekaddon$sharedSecondarySlot() {
-        return extraSlot;
+        // The machine's own slot, whatever the current state: while the row is active the vanilla field points at the
+        // row's first process instead, so remember which object it was.
+        return mekaddon$vanillaExtraSlot != null ? mekaddon$vanillaExtraSlot : extraSlot;
     }
 
     @Override
@@ -149,6 +180,17 @@ public abstract class CombiningFactoryExtraSlotsMixin implements CombiningRowTil
             }
         }
         return outputs;
+    }
+
+    @Override
+    public List<IInventorySlot> mekaddon$inputSlots() {
+        List<IInventorySlot> inputs = new ArrayList<>();
+        for (ProcessInfo info : ((FactoryBaseView) (Object) this).mekaddon$getProcessInfoSlots()) {
+            if (info.inputSlot() != null) {
+                inputs.add(info.inputSlot());
+            }
+        }
+        return inputs;
     }
 
     @Override
@@ -230,5 +272,33 @@ public abstract class CombiningFactoryExtraSlotsMixin implements CombiningRowTil
           at = @At("HEAD"), remap = false)
     private void mekaddon$selectForParseUpgradeData(HolderLookup.Provider provider, IUpgradeData data, CallbackInfo ci) {
         mekaddon$selectProcess(0);
+    }
+
+    // ------------------------------------------------------------------ the machine's own shared secondary slot
+
+    /**
+     * Gives the machine's single shared secondary ("yellow") slot the "Extra Stack Upgrade" multiplier.
+     * <p>
+     * That slot — not the per-process row — is what the stack upgrade enlarges when it is installed on its own, which
+     * the new mutual exclusion makes the normal case. The slot is built here, inside {@code addSlots}, so substituting
+     * it at this exact moment is safe: nothing has been registered with it yet (the holder, the side config and the
+     * recipe handlers all take it from the field the vanilla code writes the redirect's return value into). Replacing
+     * a slot <i>after</i> the machine has been built is what breaks those references, and that is not what happens
+     * here.
+     * <p>
+     * Only this one call is redirected — the redirect is scoped to {@code addSlots}, and the main input slots are
+     * created by the superclass call, so they keep their vanilla limits.
+     */
+    @Redirect(
+          method = "addSlots(Lmekanism/common/capabilities/holder/slot/InventorySlotHelper;Lmekanism/api/IContentsListener;Lmekanism/api/IContentsListener;)V",
+          at = @At(value = "INVOKE",
+                target = "Lmekanism/common/inventory/slot/InputInventorySlot;at(Ljava/util/function/Predicate;Lmekanism/api/IContentsListener;II)Lmekanism/common/inventory/slot/InputInventorySlot;"),
+          remap = false
+    )
+    private InputInventorySlot mekaddon$sharedSecondarySlot(Predicate<ItemStack> valid, IContentsListener listener,
+          int x, int y) {
+        // Declared to return the exact type the redirected call returns (the instance is a subclass): a redirect
+        // handler's descriptor has to line up with the call it replaces.
+        return CombiningSharedSecondarySlot.create((TileEntityMekanism) (Object) this, valid, listener, x, y);
     }
 }

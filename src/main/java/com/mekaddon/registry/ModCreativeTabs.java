@@ -17,7 +17,10 @@ public final class ModCreativeTabs {
           () -> CreativeModeTab.builder()
                 .title(Component.translatable("itemGroup.mekaddon"))
                 .icon(() -> new ItemStack(ModItems.COMBINING_SLOT_UPGRADE.get()))
-                .displayItems((parameters, output) -> output.accept(ModItems.COMBINING_SLOT_UPGRADE.get()))
+                .displayItems((parameters, output) -> {
+                    output.accept(ModItems.COMBINING_SLOT_UPGRADE.get());
+                    output.accept(ModItems.EXTRA_STACK_UPGRADE.get());
+                })
                 .build());
 
     private ModCreativeTabs() {

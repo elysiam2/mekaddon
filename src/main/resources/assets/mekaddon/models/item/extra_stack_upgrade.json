@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "mekaddon:item/extra_stack_upgrade"
+  }
+}

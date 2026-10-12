@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "SES",
+    "ECE",
+    "SES"
+  ],
+  "key": {
+    "S": {
+      "item": "mekanism:ingot_steel"
+    },
+    "E": {
+      "item": "mekanism:enriched_carbon"
+    },
+    "C": {
+      "item": "mekanism:steel_casing"
+    }
+  },
+  "result": {
+    "id": "mekaddon:extra_stack_upgrade",
+    "count": 1
+  }
+}
